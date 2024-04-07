@@ -6,19 +6,21 @@ import json
 import logging
 import sys
 from starlette.middleware.cors import CORSMiddleware
+import sqlalchemy
+from src import database as db
 
 description = """
 Central Coast Cauldrons is the premier ecommerce site for all your alchemical desires.
 """
 
 app = FastAPI(
-    title="Central Coast Cauldrons",
+    title="sprotion shop",
     description=description,
     version="0.0.1",
     terms_of_service="http://example.com/terms/",
     contact={
-        "name": "Lucas Pierce",
-        "email": "lupierce@calpoly.edu",
+        "name": "Spruha Nayak",
+        "email": "spnayak@calpoly.edu",
     },
 )
 

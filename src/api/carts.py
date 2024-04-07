@@ -2,12 +2,18 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from src.api import auth
 from enum import Enum
+import sqlalchemy
+from src import database as db
 
 router = APIRouter(
     prefix="/carts",
     tags=["cart"],
     dependencies=[Depends(auth.get_api_key)],
 )
+
+# EVENTUALLY MAKE NEW TABLE TO TRACK CARTS
+cart_id = 0
+cart_dict ={}
 
 class search_sort_options(str, Enum):
     customer_name = "customer_name"
@@ -19,6 +25,8 @@ class search_sort_order(str, Enum):
     asc = "asc"
     desc = "desc"   
 
+
+# LOL WHAT
 @router.get("/search/", tags=["search"])
 def search_orders(
     customer_name: str = "",
@@ -77,15 +85,25 @@ def post_visits(visit_id: int, customers: list[Customer]):
     """
     Which customers visited the shop today?
     """
-    print(customers)
 
+    # STEP 2) do i need to change this already returning success
+    print(customers)
+    # customer_list = []
+    # for customer in customers:
+    #     customer_list.append({"customer_name": customer.customer_name, "character_class":customer.character_class, "level":customer.level})
+
+    
     return "OK"
 
 
 @router.post("/")
 def create_cart(new_cart: Customer):
     """ """
-    return {"cart_id": 1}
+    # STEP 3)
+    global cart_id
+    cart_id += 1
+    cart_dict[cart_id] = {}
+    return {"cart_id": cart_id} # cast to str?
 
 
 class CartItem(BaseModel):
@@ -95,7 +113,10 @@ class CartItem(BaseModel):
 @router.post("/{cart_id}/items/{item_sku}")
 def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
     """ """
-
+    # STEP 4)
+    # finds cart values and updates item with cart's quantity
+    curr_cart = cart_dict[cart_id]
+    curr_cart.item_sku = cart_item.quantity
     return "OK"
 
 
@@ -105,5 +126,28 @@ class CartCheckout(BaseModel):
 @router.post("/{cart_id}/checkout")
 def checkout(cart_id: int, cart_checkout: CartCheckout):
     """ """
+    # add payment logic can we assume they will always have enough?
 
-    return {"total_potions_bought": 1, "total_gold_paid": 50}
+    curr_cart = cart_dict[cart_id]
+    gold_paid = 0
+    potions_bought = 0
+
+    with db.engine.begin() as connection:
+        # for each item in cart evaluate how much is in global
+        for quantity in curr_cart.values():
+            result = connection.execute(sqlalchemy.text("SELECT num_green_potions, gold FROM global_inventory"))
+            global_green_pots = result.first().num_green_potions
+            gold_global = result.first().gold
+
+            # if there is enough in global continue payment
+            if global_green_pots >= quantity:
+                global_green_pots -= quantity
+                gold_global += quantity * 50 # can just add this after
+                potions_bought += quantity
+                gold_paid += quantity * 50
+                
+        # updates green pots and gold with transaction
+        connection.execute(sqlalchemy.text("UPDATE global_inventory SET gold = :gold_global"), [{"gold_global": gold_global }])
+        connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_potions = :green_pots"), [{"green_pots": global_green_pots }])
+            
+    return {"total_potions_bought": potions_bought, "total_gold_paid": gold_paid}
