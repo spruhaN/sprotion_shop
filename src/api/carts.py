@@ -132,23 +132,23 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     curr_cart = cart_dict[cart_id]
     gold_paid = 0
     potions_bought = 0
+    with db.engine.begin() as connection:
+        # for each item in cart evaluate how much is in global
+        for quantity in curr_cart.values():
+            result = connection.execute(sqlalchemy.text("SELECT num_green_potions, gold FROM global_inventory")).first()
+            global_green_pots = result.num_green_potions
+            gold_global = result.gold
+            print(f"BEFORE PURCHASE: {global_green_pots} potions and {gold_global} coins and they want {quantity} this many potions")
 
-    # with db.engine.begin() as connection:
-    #     # for each item in cart evaluate how much is in global
-    #     for quantity in curr_cart.values():
-    #         result = connection.execute(sqlalchemy.text("SELECT num_green_potions, gold FROM global_inventory"))
-    #         global_green_pots = result.first().num_green_potions
-    #         gold_global = result.first().gold
-
-    #         # if there is enough in global continue payment
-    #         if global_green_pots >= quantity:
-    #             global_green_pots -= quantity
-    #             gold_global += quantity * 50 # can just add this after
-    #             potions_bought += quantity
-    #             gold_paid += quantity * 50
+            # if there is enough in global continue payment
+            if global_green_pots >= quantity:
+                global_green_pots -= quantity
+                gold_global += quantity * 50 # can just add this after
                 
-    #     # updates green pots and gold with transaction
-    #     connection.execute(sqlalchemy.text("UPDATE global_inventory SET gold = :gold_global"), [{"gold_global": gold_global }])
-    #     connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_potions = :green_pots"), [{"green_pots": global_green_pots }])
-            
+                potions_bought += quantity
+                gold_paid += quantity * 50
+        # updates green pots and gold with transaction
+        connection.execute(sqlalchemy.text("UPDATE global_inventory SET gold = :gold_global"), [{"gold_global": gold_global }])
+        connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_potions = :green_pots"), [{"green_pots": global_green_pots }])
+        print(f"AFTER PURCHASE: {global_green_pots} potions and {gold_global} coins")
     return {"total_potions_bought": 1, "total_gold_paid": 50}
