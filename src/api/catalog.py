@@ -4,7 +4,7 @@ from src import database as db
 
 router = APIRouter()
 
-# STEP 1) 
+# STEP 1) TESTED!
 @router.get("/catalog/", tags=["catalog"])
 def get_catalog():
     """

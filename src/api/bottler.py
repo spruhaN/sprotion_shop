@@ -19,13 +19,15 @@ class PotionInventory(BaseModel):
 def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int):
     """ """
     print(f"potions delievered: {potions_delivered} order_id: {order_id}")
-    # STEP 2)
+    # STEP 2) kinda tested!
     
     with db.engine.begin() as connection:
         # grab available ml and pots(green)
-        result = connection.execute(sqlalchemy.text("SELECT num_green_ml, num_green_potions FROM global_inventory"))
-        green_ml = result.first().num_green_ml
-        green_pots = result.first().num_green_potions
+        result = connection.execute(sqlalchemy.text("SELECT num_green_ml, num_green_potions FROM global_inventory")).first()
+        green_ml = result.num_green_ml
+        green_pots = result.num_green_potions
+
+        print(f"CURR INVENTORY {green_ml} ml and {green_pots} potions left")
 
         # for each potion
         for potion in potions_delivered:
@@ -34,6 +36,7 @@ def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int
 
         # can make sql text and execute separate
         connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_ml = :green_ml, num_green_potions = :green_pots"), {"green_ml" : green_ml, "green_pots": green_pots})
+        print(f"UPDATED INVENTORY {green_ml} ml and {green_pots} potions left")
     return "OK"
 
 @router.post("/plan")
