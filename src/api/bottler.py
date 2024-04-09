@@ -48,7 +48,9 @@ def get_bottle_plan():
     # STEP 1) 
     with db.engine.begin() as connection:
         result = connection.execute(sqlalchemy.text("SELECT num_green_ml FROM global_inventory"))
-        green_ml = result.first().num_green_ml
+        green_ml = result.first().num_green_ml//100
+        if green_ml == 0:
+            return []
     # Each bottle has a quantity of what proportion of red, blue, and
     # green potion to add.
     # Expressed in integers from 1 to 100 that must sum up to 100.
@@ -58,7 +60,7 @@ def get_bottle_plan():
     return [
             {
                 "potion_type": [0, 100, 0, 0], # already sums up to 100
-                "quantity": green_ml//100, # floor for bottle num
+                "quantity": green_ml, # floor for bottle num
             }
         ]
 
