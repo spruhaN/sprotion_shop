@@ -19,8 +19,8 @@ def get_inventory():
     total_gold = 0
     with db.engine.begin() as connection:
         result = connection.execute(sqlalchemy.text("SELECT * FROM global_inventory")).first()
-        total_pots = result.num_green_potions
-        total_ml = result.num_green_ml
+        total_pots = result.num_green_potions + result.num_red_potions + result.num_blue_potions
+        total_ml = result.num_green_ml + result.num_blue_ml + result.num_red_ml
         total_gold = result.gold
 
 

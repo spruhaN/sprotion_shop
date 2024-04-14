@@ -13,7 +13,7 @@ router = APIRouter(
 
 # EVENTUALLY MAKE NEW TABLE TO TRACK CARTS
 cart_id = 0
-cart_dict ={}
+cart_dict = {}
 
 class search_sort_options(str, Enum):
     customer_name = "customer_name"
@@ -99,7 +99,7 @@ def post_visits(visit_id: int, customers: list[Customer]):
 @router.post("/")
 def create_cart(new_cart: Customer):
     """ """
-    # STEP 3) TESTED! INCREMENTS ACCORDINGLY
+    # STEP 3) TESTED! INCREMENTS ACCORDINGLY add checks
     global cart_id
     cart_id += 1
     cart_dict[cart_id] = {}
@@ -113,7 +113,7 @@ class CartItem(BaseModel):
 @router.post("/{cart_id}/items/{item_sku}")
 def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
     """ """
-    # STEP 4) ADDS CORRECTLY DO WE WANT TO CHECK FOR QUANTITY HERE?
+    # STEP 4) add checks in db if item exists and cart id 
     # finds cart values and updates item with cart's quantity
     curr_cart = cart_dict[cart_id]
     curr_cart[item_sku] = cart_item.quantity
@@ -134,21 +134,45 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     potions_bought = 0
     with db.engine.begin() as connection:
         # for each item in cart evaluate how much is in global
-        for quantity in curr_cart.values():
-            result = connection.execute(sqlalchemy.text("SELECT num_green_potions, gold FROM global_inventory")).first()
+        for sku,quantity in curr_cart.items():
+            result = connection.execute(sqlalchemy.text("SELECT * FROM global_inventory")).first()
             global_green_pots = result.num_green_potions
+            global_red_pots = result.num_red_potions
+            global_blue_pots = result.num_blue_potions
             gold_global = result.gold
-            print(f"BEFORE PURCHASE: {global_green_pots} potions and {gold_global} coins and they want {quantity} this many potions")
+            print(f"BEFORE PURCHASE: {global_green_pots} potions and {gold_global} coins and they want {quantity} potions")
 
             # if there is enough in global continue payment
-            if global_green_pots >= quantity:
-                global_green_pots -= quantity
-                gold_global += quantity * 50 # can just add this after
-                
-                potions_bought += quantity
-                gold_paid += quantity * 50
+            if "green" in sku:
+                if global_green_pots >= quantity:
+                    global_green_pots -= quantity
+                    potions_bought += quantity
+                    gold_paid += quantity * 50
+                else:
+                    potions_bought += global_green_pots
+                    gold_paid +=  global_green_pots * 50
+                    global_green_pots = 0
+            if "red" in sku:    
+                if global_red_pots >= quantity:
+                    global_red_pots -= quantity
+                    potions_bought += quantity
+                    gold_paid += quantity * 50
+                else:
+                    potions_bought += global_red_pots
+                    gold_paid +=  global_red_pots * 50
+                    global_red_pots = 0
+            if "blue" in sku:
+                if global_blue_pots >= quantity:
+                    global_blue_pots -= quantity
+                    potions_bought += quantity
+                    gold_paid += quantity * 50
+                else: # give them whatever is left
+                    potions_bought += global_blue_pots
+                    gold_paid +=  global_blue_pots * 50
+                    global_blue_pots = 0
+            gold_global += gold_paid
+            connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_potions = :gp, num_red_potions = :rp, num_blue_potions = :bp"), [{"gp": global_green_pots,"rp": global_red_pots,"bp": global_blue_pots}])
         # updates green pots and gold with transaction
         connection.execute(sqlalchemy.text("UPDATE global_inventory SET gold = :gold_global"), [{"gold_global": gold_global }])
-        connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_potions = :green_pots"), [{"green_pots": global_green_pots }])
         print(f"AFTER PURCHASE: {global_green_pots} potions and {gold_global} coins")
-    return {"total_potions_bought": 1, "total_gold_paid": 50}
+    return {"total_potions_bought": potions_bought, "total_gold_paid": gold_paid}
