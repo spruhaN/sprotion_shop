@@ -10,7 +10,9 @@ def get_catalog():
     """
     Each unique item combination must have only a single price.
     """
-    green_pots, red_pots, blue_pots = 0
+    green_pots = 0
+    red_pots = 0
+    blue_pots = 0
     catalog = []
     # get available green pots from inventory
     with db.engine.begin() as connection:
