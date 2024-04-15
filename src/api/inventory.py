@@ -22,8 +22,6 @@ def get_inventory():
         total_pots = result.num_green_potions + result.num_red_potions + result.num_blue_potions
         total_ml = result.num_green_ml + result.num_blue_ml + result.num_red_ml
         total_gold = result.gold
-
-
     return {"number_of_potions": total_pots, "ml_in_barrels": total_ml, "gold": total_gold}
 
 # Gets called once a day

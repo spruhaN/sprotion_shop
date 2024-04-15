@@ -38,7 +38,7 @@ def post_deliver_barrels(barrels_delivered: list[Barrel], order_id: int):
             blue_ml += (barrel.potion_type[2] *  barrel.ml_per_barrel * barrel.quantity)
             gold -= barrel.price * barrel.quantity
 
-        connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_ml = :green_ml, num_red_ml = :red_ml, num_blue_ml = :blue_ml"), {"green_ml" : green_ml, "blue_ml": blue_ml, "red_ml": red_ml})
+        connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_ml = :green_ml, num_red_ml = :red_ml, num_blue_ml = :blue_ml, gold = :gold"), {"green_ml" : green_ml, "blue_ml": blue_ml, "red_ml": red_ml, "gold": gold})
 
     print(f"UPDATED INV: (g: {green_ml}ml) (r: {red_ml}ml) (b: {blue_ml} ml) ({gold}coins)")
     return "OK"
