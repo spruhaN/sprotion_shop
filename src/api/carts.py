@@ -143,7 +143,8 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             print(f"BEFORE PURCHASE: {global_green_pots} potions and {gold_global} coins and they want {quantity} potions")
 
             # if there is enough in global continue payment
-            if "green" in sku:
+            if "green" in sku.lower():
+                print("wants green")
                 if global_green_pots >= quantity:
                     global_green_pots -= quantity
                     potions_bought += quantity
@@ -152,7 +153,8 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                     potions_bought += global_green_pots
                     gold_paid +=  global_green_pots * 50
                     global_green_pots = 0
-            if "red" in sku:    
+            if "red" in sku.lower():    
+                print("wants red")
                 if global_red_pots >= quantity:
                     global_red_pots -= quantity
                     potions_bought += quantity
@@ -161,7 +163,8 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
                     potions_bought += global_red_pots
                     gold_paid +=  global_red_pots * 50
                     global_red_pots = 0
-            if "blue" in sku:
+            if "blue" in sku.lower():
+                print("wants blue")
                 if global_blue_pots >= quantity:
                     global_blue_pots -= quantity
                     potions_bought += quantity
