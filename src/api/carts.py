@@ -83,16 +83,21 @@ class Customer(BaseModel):
 @router.post("/visits/{visit_id}")
 def post_visits(visit_id: int, customers: list[Customer]):
     """
-    Which customers visited the shop today?
+    Endpoint to log which customers visited the shop on a specific visit.
+    """
+    query = """
+        INSERT INTO customer_visits (visit_id, name, class, level)
+        VALUES (:visit_id, :name, :class, :level)
     """
 
-    # STEP 2) do i need to change this already returning success
-    print(customers)
-    # customer_list = []
-    # for customer in customers:
-    #     customer_list.append({"customer_name": customer.customer_name, "character_class":customer.character_class, "level":customer.level})
-
-    
+    with db.engine.begin() as connection:
+        for customer in customers:
+            connection.execute(sqlalchemy.text(query), {
+                'visit_id': visit_id,
+                'name': customer.customer_name,
+                'class': customer.character_class,
+                'level': customer.level
+            })
     return "OK"
 
 
@@ -115,6 +120,7 @@ def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
     """ """
     # STEP 4) add checks in db if item exists and cart id 
     # finds cart values and updates item with cart's quantity
+
     curr_cart = cart_dict[cart_id]
     curr_cart[item_sku] = cart_item.quantity
     print(f"DICTIONARY: {cart_dict}")
@@ -140,7 +146,7 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             global_red_pots = result.num_red_potions
             global_blue_pots = result.num_blue_potions
             gold_global = result.gold
-            print(f"BEFORE PURCHASE: {global_green_pots} potions and {gold_global} coins and they want {quantity} potions")
+            print(f"checking out payment({cart_checkout.payment})")
 
             # if there is enough in global continue payment
             if "green" in sku.lower():
