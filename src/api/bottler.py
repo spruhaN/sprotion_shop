@@ -18,36 +18,30 @@ class PotionInventory(BaseModel):
 @router.post("/deliver/{order_id}") # what should i be doing with order id
 def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int):
     """ """
-    print(f"potions delievered: {potions_delivered} order_id: {order_id}")
+    print(f"delivering potions: {potions_delivered} order_id: {order_id}")
     # STEP 2) kinda tested!
     
     with db.engine.begin() as connection:
         # grab available ml and pots(green)
         result = connection.execute(sqlalchemy.text("SELECT * FROM global_inventory")).first()
-        green_ml = result.num_green_ml
-        green_pots = result.num_green_potions
-        red_ml = result.num_red_ml
-        red_pots = result.num_red_potions
-        blue_ml = result.num_blue_ml
-        blue_pots = result.num_blue_potions
-
-        # print(f"CURR INVENTORY {green_ml} ml and {green_pots} potions left")
+        available_inventory = [result.num_red_ml, result.num_green_ml, result.num_blue_ml, result.num_dark_ml]
 
         # for each potion
         for potion in potions_delivered:
-
-            if potion.potion_type[1] != 0:
-                green_ml -= potion.potion_type[1] * potion.quantity # each potion has 100 ml for now
-                green_pots += potion.quantity
-            if potion.potion_type[0] != 0:
-                red_ml -= potion.potion_type[0] * potion.quantity # each potion has 100 ml for now
-                red_pots += potion.quantity
-            if potion.potion_type[2] != 0:
-                blue_ml -= potion.potion_type[2] * potion.quantity # each potion has 100 ml for now
-                blue_pots += potion.quantity
-
-        # can make sql text and execute separate
-        connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_ml = :gm, num_green_potions = :gp, num_red_ml =  :rm, num_red_potions = :rp, num_blue_ml = :bm, num_blue_potions = :bp"), {"gm" : green_ml, "gp": green_pots, "rp": red_pots, "rm" : red_ml, "bp": blue_pots, "bm" : blue_ml})
+            type = potion.potion_type
+            num = potion.quantity
+            
+            result = connection.execute(sqlalchemy.text("SELECT id, inventory FROM potions WHERE potion_type = :potion_type"), {'potion_type': type}).first()
+            potion_id = result.id
+            potion_inventory = result.inventory + potion.quantity
+            available_inventory[0] -= potion.potion_type[0] * potion.quantity
+            available_inventory[1] -= potion.potion_type[1] * potion.quantity
+            available_inventory[2] -= potion.potion_type[2] * potion.quantity
+            available_inventory[3] -= potion.potion_type[3] * potion.quantity
+            # id
+            # can make sql text and execute separate
+            connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_ml = :gm, num_red_ml =  :rm, num_blue_ml =  :bm, num_dark_ml = :dm"), {"gm" : available_inventory[1], "rm" : available_inventory[0], "bm" : available_inventory[2], "dm" : available_inventory[3]})
+            connection.execute(sqlalchemy.text("UPDATE potions SET inventory = :inven WHERE id = :potion_id"), {"inven" : potion_inventory, "potion_id" : potion_id})
         # print(f"UPDATED INVENTORY {green_ml} ml and {green_pots} potions left")
     return "OK"
 
@@ -56,39 +50,73 @@ def get_bottle_plan():
     """
     Go from barrel to bottle.
     """
+    print("planning bottles")
+    x = 5 # capacity
     green_ml = 0
     red_ml = 0
     blue_ml = 0
     bottle_cart = []
     # STEP 1) 
     with db.engine.begin() as connection:
-        result = connection.execute(sqlalchemy.text("SELECT * FROM global_inventory")).first()
-        green_ml = result.num_green_ml//100
-        red_ml = result.num_red_ml//100
-        blue_ml = result.num_blue_ml//100
+        # grab all available ml
+        available_colors = []
+        result_global = connection.execute(sqlalchemy.text("SELECT * FROM global_inventory")).first()
+        available_colors.append(result_global.num_red_ml)
+        available_colors.append(result_global.num_green_ml)
+        available_colors.append(result_global.num_blue_ml)
+        available_colors.append(result_global.num_dark_ml)
+        print(f"available ml inventory: {available_colors}")
 
-        if green_ml > 0:
-            bottle_cart.append({
-                "potion_type": [0, 100, 0, 0], # already sums up to 100
-                "quantity": green_ml, # floor for bottle num
-            })
-        if red_ml > 0:
-            bottle_cart.append({
-                "potion_type": [100, 0, 0, 0], # already sums up to 100
-                "quantity": red_ml, # floor for bottle num
-            })
-        if blue_ml > 0:
-            bottle_cart.append({
-                "potion_type": [0, 0, 100, 0], # already sums up to 100
-                "quantity": blue_ml, # floor for bottle num
-            })
-    # Each bottle has a quantity of what proportion of red, blue, and
-    # green potion to add.
-    # Expressed in integers from 1 to 100 that must sum up to 100.
+        # grab possible potions
+        potions = connection.execute(sqlalchemy.text("SELECT sku, inventory, potion_type FROM public.potions WHERE inventory < 5 ORDER BY inventory ASC")).mappings().all()
 
-    # Initial logic: bottle all barrels into GREEN potions.
 
+        additions = {potion['sku']: {'added': [0, 0, 0, 0], 'inventory': 0} for potion in potions}
+        print(len(potions))
+        cant_add = 0  # Initialize to a non-zero value to enter the loop
+        while cant_add < len(potions):
+            for potion in potions:
+                # for each color check if enough if so add potion type to addition
+                check = check_color(available_colors, potion['potion_type'])
+                curr_i = additions[potion['sku']]['inventory']
+                if check_color(available_colors, potion['potion_type']) is True and additions[potion['sku']]['inventory'] < 5:
+                    # make this a loop later
+                    additions[potion['sku']]['added'][0] += potion['potion_type'][0]
+                    additions[potion['sku']]['added'][1] += potion['potion_type'][1]
+                    additions[potion['sku']]['added'][2] += potion['potion_type'][2]
+                    additions[potion['sku']]['added'][3] += potion['potion_type'][3]
+                    available_colors[0] -= potion['potion_type'][0]
+                    available_colors[1] -= potion['potion_type'][1]
+                    available_colors[2] -= potion['potion_type'][2]
+                    available_colors[3] -= potion['potion_type'][3]
+                    additions[potion['sku']]['inventory'] += 1
+                    cant_add = 0
+                else:
+                    cant_add += 1
+
+
+        # Prepare the bottle cart based on accumulated additions
+        bottle_cart = []
+        for id, addition in additions.items():
+                if sum(addition['added']) >= 100:
+                    num_bottles = sum(addition['added']) // 100
+                    normalized_addition = [amt / num_bottles for amt in addition['added']]
+                    bottle_cart.append({
+                                            "potion_type": normalized_addition,
+                                            "quantity": num_bottles
+                                        })
+    
+    print(f"bottle plan: {bottle_cart}")
     return bottle_cart
+
+def check_color(available, wanted):
+    check = 0
+    for i in range(4):
+        avail_ml = available[i]
+        wanted_ml = wanted[i]
+        if avail_ml >= wanted_ml:
+            check+=1
+    return check == 4
 
 if __name__ == "__main__":
     print(get_bottle_plan())

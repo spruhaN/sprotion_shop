@@ -10,41 +10,19 @@ def get_catalog():
     """
     Each unique item combination must have only a single price.
     """
-    green_pots = 0
-    red_pots = 0
-    blue_pots = 0
     catalog = []
-    # get available green pots from inventory
     with db.engine.begin() as connection:
-        result = connection.execute(sqlalchemy.text("SELECT * FROM global_inventory")).first()
-        green_pots = result.num_green_potions
-        red_pots = result.num_red_potions
-        blue_pots = result.num_blue_potions
+        results = connection.execute(sqlalchemy.text("SELECT sku, inventory, price, potion_type FROM public.potions WHERE inventory > 0")).mappings().all()
 
-        if green_pots != 0:
+        
+        for result in results:
+            potion_type = [int(n) for n in result['potion_type']]
             catalog.append({
-                "sku": "GREEN_POTION_0",
-                "name": "green potion",
-                "quantity": green_pots,
-                "price": 50,
-                "potion_type": [0, 100, 0, 0],
+                "sku": result['sku'],
+                "name": f"{result['sku'].split('_')[0].lower()} potion",
+                "quantity": result['inventory'],
+                "price": result['price'],
+                "potion_type": potion_type
             })
-        if red_pots != 0:
-            catalog.append({
-                "sku": "RED_POTION_0",
-                "name": "red potion",
-                "quantity": red_pots,
-                "price": 50,
-                "potion_type": [100, 0, 0, 0],
-            })
-        if blue_pots != 0:
-            catalog.append({
-                "sku": "BLUE_POTION_0",
-                "name": "blue potion",
-                "quantity": blue_pots,
-                "price": 50,
-                "potion_type": [0, 0, 100, 0],
-            })
-    
-    # else return how many are available
+        
     return catalog
