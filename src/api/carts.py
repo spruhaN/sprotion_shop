@@ -104,11 +104,11 @@ def post_visits(visit_id: int, customers: list[Customer]):
 @router.post("/")
 def create_cart(new_cart: Customer):
     """ """
-    # STEP 3) TESTED! INCREMENTS ACCORDINGLY add checks
-    global cart_id
-    cart_id += 1
-    cart_dict[cart_id] = {}
-    return {"cart_id": cart_id} # cast to str?
+    print("creating cart")
+    with db.engine.begin() as connection:
+        result = connection.execute(sqlalchemy.text("insert into carts default values returning id")).first()
+        return result.id
+    return -50
 
 
 class CartItem(BaseModel):
@@ -118,12 +118,11 @@ class CartItem(BaseModel):
 @router.post("/{cart_id}/items/{item_sku}")
 def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
     """ """
-    # STEP 4) add checks in db if item exists and cart id 
-    # finds cart values and updates item with cart's quantity
-
-    curr_cart = cart_dict[cart_id]
-    curr_cart[item_sku] = cart_item.quantity
-    print(f"DICTIONARY: {cart_dict}")
+    # STEP 4)
+    print(f"adding to cart {cart_id} ({item_sku}: {cart_item.quantity})")
+    with db.engine.begin() as connection:
+        print(item_sku)
+        result = connection.execute(sqlalchemy.text("INSERT INTO public.cart_items (cart_id, potion_id, quantity) SELECT :cart_id, id, :quantity FROM public.potions WHERE sku = :sku"), {'cart_id': cart_id, 'sku': item_sku, 'quantity': cart_item.quantity})
     return "OK"
 
 
@@ -133,55 +132,32 @@ class CartCheckout(BaseModel):
 @router.post("/{cart_id}/checkout")
 def checkout(cart_id: int, cart_checkout: CartCheckout):
     """ """
-    # add payment logic can we assume they will always have enough?
+    print(f"checking out cart {cart_id}")
 
-    curr_cart = cart_dict[cart_id]
-    gold_paid = 0
-    potions_bought = 0
     with db.engine.begin() as connection:
-        # for each item in cart evaluate how much is in global
-        for sku,quantity in curr_cart.items():
-            result = connection.execute(sqlalchemy.text("SELECT * FROM global_inventory")).first()
-            global_green_pots = result.num_green_potions
-            global_red_pots = result.num_red_potions
-            global_blue_pots = result.num_blue_potions
-            gold_global = result.gold
-            print(f"checking out payment({cart_checkout.payment})")
+        # get all values with cart id
+        cart_items = connection.execute(sqlalchemy.text("SELECT potion_id, quantity FROM cart_items WHERE cart_id = :cart_id"), {'cart_id': cart_id}).mappings().all()
 
-            # if there is enough in global continue payment
-            if "green" in sku.lower():
-                print("wants green")
-                if global_green_pots >= quantity:
-                    global_green_pots -= quantity
-                    potions_bought += quantity
-                    gold_paid += quantity * 50
-                else:
-                    potions_bought += global_green_pots
-                    gold_paid +=  global_green_pots * 50
-                    global_green_pots = 0
-            if "red" in sku.lower():    
-                print("wants red")
-                if global_red_pots >= quantity:
-                    global_red_pots -= quantity
-                    potions_bought += quantity
-                    gold_paid += quantity * 50
-                else:
-                    potions_bought += global_red_pots
-                    gold_paid +=  global_red_pots * 50
-                    global_red_pots = 0
-            if "blue" in sku.lower():
-                print("wants blue")
-                if global_blue_pots >= quantity:
-                    global_blue_pots -= quantity
-                    potions_bought += quantity
-                    gold_paid += quantity * 50
-                else: # give them whatever is left
-                    potions_bought += global_blue_pots
-                    gold_paid +=  global_blue_pots * 50
-                    global_blue_pots = 0
-            gold_global += gold_paid
-            connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_potions = :gp, num_red_potions = :rp, num_blue_potions = :bp"), [{"gp": global_green_pots,"rp": global_red_pots,"bp": global_blue_pots}])
-        # updates green pots and gold with transaction
-        connection.execute(sqlalchemy.text("UPDATE global_inventory SET gold = :gold_global"), [{"gold_global": gold_global }])
-        print(f"AFTER PURCHASE: {global_green_pots} potions and {gold_global} coins")
-    return {"total_potions_bought": potions_bought, "total_gold_paid": gold_paid}
+        total_cost = 0
+        total_potions_sold = 0
+
+        for item in cart_items:
+            # use potion id and get price and current inventory
+            potion_details = connection.execute(sqlalchemy.text("SELECT price,inventory FROM potions WHERE id = :pot_id"),{'pot_id': item['potion_id']}).first()
+
+            # give whats possible
+            if potion_details.inventory >= item.quantity:
+                sell_quantity = item.quantity
+            else:
+                sell_quantity = potion_details.inventory
+
+            total_potions_sold += sell_quantity
+            total_cost += (sell_quantity * potion_details.price)
+
+            # calculate and update values
+            res = connection.execute(sqlalchemy.text("UPDATE potions SET inventory = inventory - :sold_no WHERE id = :pot_id"),{'sold_no': sell_quantity, 'pot_id':item['potion_id']})
+
+        res = connection.execute(sqlalchemy.text("UPDATE global_inventory SET gold = gold + :added"),{'added': total_cost})
+    print(f"prev state num pots: {total_potions_sold} cost: {total_cost}")
+
+    return {"total_potions_bought": total_potions_sold, "total_gold_paid": total_cost}
