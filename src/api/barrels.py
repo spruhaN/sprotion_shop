@@ -68,52 +68,60 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
 
     return selected
 
+
+# so now only considers smaller barrels more for more diversity but only considers each barrel once...
+# make it such that it looks for quantity as well
 def get_wanted_barrels(barrels, requirements, budget):
     selected_barrels = []
     total_cost = 0
     colors = ['red', 'green', 'blue', 'dark']
-    
-    # ml calculation(i dont really need this :/)
+    color_index = 0  # Start with the first color
+
     def actual_ml(barrel, color_index):
         return barrel.potion_type[color_index] * barrel.ml_per_barrel
-    
-    # value of each barrel
+
     def barrel_score(barrel):
         contributions = [actual_ml(barrel, idx) for idx in range(4) if requirements[idx] > 0]
         if all(contribution == 0 for contribution in contributions):
-            return 0 # if it meets none of the wanted ml
-        score = sum((requirements[idx] - actual_ml(barrel, idx))**2 
+            return 0  # If barrel meets none of the wanted ml
+        score = sum((requirements[idx] - actual_ml(barrel, idx)) ** 2 
                     for idx in range(4) if requirements[idx] > 0)
-        if budget < barrel.price:
-            return 0
-        return score / barrel.price
+        return score / barrel.price if barrel.price <= budget else 0
 
+    while sum(requirements) > 0 and budget > 0:
+        # filter barrels that can contribute to the current color and have a score greater than 0
+        filtered_barrels = [barrel for barrel in barrels if actual_ml(barrel, color_index) > 0 and barrel_score(barrel) > 0]
+        if not filtered_barrels:
+            color_index = (color_index + 1) % 4  # move to the next color
+            continue
 
-    for barrel in barrels:
-        print(f"sku: {barrel.sku} and its score: {barrel_score(barrel)}")
-    # drops all 0's
-    filtered_barrels = [barrel for barrel in barrels if barrel_score(barrel) > 0]
-    # if you still have money and requirements are still yet to be met
-    while sum(requirements) > 0 and budget > 0 and len(filtered_barrels) != 0:
-        filtered_barrels.sort(key=barrel_score)
+        # sort barrels by their ml_per_barrel (ascending for smaller size) and then by actual ml contribution (descending)
+        filtered_barrels.sort(key=lambda barrel: (barrel.ml_per_barrel, -actual_ml(barrel, color_index)))
+
         best_barrel = filtered_barrels[0]
-
-        # if the barrel can be bought within the budget
         if total_cost + best_barrel.price <= budget:
             selected_barrels.append({
-                                        "sku": best_barrel.sku,
-                                        "quantity": 1
-                                    })
+                "sku": best_barrel.sku,
+                "quantity": 1
+            })
             total_cost += best_barrel.price
             budget -= best_barrel.price
 
-            # update constraints
+            # update requirements based on the selected barrel
             for i in range(4):
                 requirements[i] = max(0, requirements[i] - actual_ml(best_barrel, i))
-            filtered_barrels.remove(best_barrel) # for now only considers barrel once need to update
+
+            barrels.remove(best_barrel)  # avoids reselection
+            # thoughts: if enough quantity decrement and make score less
         else:
-            break  # too broke :/
+            break  # Stop if the barrel is too expensive
+
+        color_index = (color_index + 1) % 4  # Cycle to the next color
+
     return selected_barrels
+
+
+
 
 
 # returns wanted ml for potions to reach ideal capacity
