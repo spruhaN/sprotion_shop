@@ -89,9 +89,10 @@ def post_visits(visit_id: int, customers: list[Customer]):
         INSERT INTO customer_visits (visit_id, name, class, level)
         VALUES (:visit_id, :name, :class, :level)
     """
-
+    
     with db.engine.begin() as connection:
         for customer in customers:
+            print(f"visited by {customer.name}")
             connection.execute(sqlalchemy.text(query), {
                 'visit_id': visit_id,
                 'name': customer.customer_name,
