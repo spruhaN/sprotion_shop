@@ -12,8 +12,8 @@ def get_catalog():
     """
     catalog = []
     with db.engine.begin() as connection:
-        results = connection.execute(sqlalchemy.text("SELECT sku, inventory, price, potion_type FROM public.potions WHERE inventory > 0")).mappings().all()
-
+        results = connection.execute(sqlalchemy.text("SELECT sku, inventory, price, potion_type FROM public.potions WHERE inventory > 0 ORDER BY inventory DESC")).mappings().all()
+        count = 0
         
         for result in results:
             potion_type = [int(n) for n in result['potion_type']]
@@ -24,5 +24,8 @@ def get_catalog():
                 "price": result['price'],
                 "potion_type": potion_type
             })
+            count += 1
+            if count == 6:
+                break
         
     return catalog
