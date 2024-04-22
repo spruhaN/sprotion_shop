@@ -92,7 +92,7 @@ def post_visits(visit_id: int, customers: list[Customer]):
     
     with db.engine.begin() as connection:
         for customer in customers:
-            print(f"visited by {customer.name}")
+            print(f"visited by {customer.customer_name}")
             connection.execute(sqlalchemy.text(query), {
                 'visit_id': visit_id,
                 'name': customer.customer_name,
