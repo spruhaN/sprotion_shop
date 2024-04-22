@@ -118,11 +118,13 @@ class CartItem(BaseModel):
 @router.post("/{cart_id}/items/{item_sku}")
 def set_item_quantity(cart_id: int, item_sku: str, cart_item: CartItem):
     """ """
+
     # STEP 4)
     print(f"adding to cart {cart_id} ({item_sku}: {cart_item.quantity})")
     with db.engine.begin() as connection:
         print(item_sku)
         result = connection.execute(sqlalchemy.text("INSERT INTO public.cart_items (cart_id, potion_id, quantity) SELECT :cart_id, id, :quantity FROM public.potions WHERE sku = :sku"), {'cart_id': cart_id, 'sku': item_sku, 'quantity': cart_item.quantity})
+
     return "OK"
 
 
@@ -161,3 +163,4 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
     print(f"prev state num pots: {total_potions_sold} cost: {total_cost}")
 
     return {"total_potions_bought": total_potions_sold, "total_gold_paid": total_cost}
+
