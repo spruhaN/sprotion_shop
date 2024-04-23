@@ -106,7 +106,7 @@ def get_bottle_plan():
                                             "quantity": num_bottles
                                         })
     
-    print(f"bottle plan: {bottle_cart} {type(bottle_cart[0]['potion_type'][0])}")
+    print(f"bottle plan: {bottle_cart}")
     return bottle_cart
 
 def check_color(available, wanted):
