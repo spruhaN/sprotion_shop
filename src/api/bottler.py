@@ -100,13 +100,13 @@ def get_bottle_plan():
         for id, addition in additions.items():
                 if sum(addition['added']) >= 100:
                     num_bottles = sum(addition['added']) // 100
-                    normalized_addition = [amt / num_bottles for amt in addition['added']]
+                    normalized_addition = [int(amt/num_bottles) for amt in addition['added']]
                     bottle_cart.append({
                                             "potion_type": normalized_addition,
                                             "quantity": num_bottles
                                         })
     
-    print(f"bottle plan: {bottle_cart}")
+    print(f"bottle plan: {bottle_cart} {type(bottle_cart[0]['potion_type'][0])}")
     return bottle_cart
 
 def check_color(available, wanted):
