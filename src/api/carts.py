@@ -108,8 +108,9 @@ def create_cart(new_cart: Customer):
     print("creating cart")
     with db.engine.begin() as connection:
         result = connection.execute(sqlalchemy.text("insert into carts default values returning id")).first()
-        return result.id
-    return -50
+        print(f"id: {result.id}")
+        return {"cart_id": result.id}
+    return {"cart_id": -1}
 
 
 class CartItem(BaseModel):
