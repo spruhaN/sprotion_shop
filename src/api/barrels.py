@@ -74,7 +74,7 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
 def get_wanted_barrels(barrels, requirements, budget):
     selected_barrels = []
     total_cost = 0
-    colors = ['red', 'green', 'blue', 'dark']
+    colors = ['green', 'red', 'blue', 'dark']
     color_index = 0  # Start with the first color
 
     def actual_ml(barrel, color_index):
