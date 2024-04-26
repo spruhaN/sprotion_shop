@@ -68,7 +68,7 @@ def get_bottle_plan():
         print(f"available ml inventory: {available_colors}")
 
         # grab possible potions
-        potions = connection.execute(sqlalchemy.text("SELECT sku, inventory, potion_type FROM public.potions WHERE inventory < 5 ORDER BY inventory ASC")).mappings().all()
+        potions = connection.execute(sqlalchemy.text("SELECT sku, inventory, potion_type FROM public.potions WHERE inventory < 5 ORDER BY mixed DESC, inventory ASC")).mappings().all()
 
 
         additions = {potion['sku']: {'added': [0, 0, 0, 0], 'inventory': 0} for potion in potions}
