@@ -4,15 +4,35 @@ from src import database as db
 
 router = APIRouter()
 
-# STEP 1) TESTED!
 @router.get("/catalog/", tags=["catalog"])
 def get_catalog():
     """
     Each unique item combination must have only a single price.
     """
+    sql_qry = """
+            SELECT 
+                p.sku AS sku, 
+                p.id AS id, 
+                p.price AS price,
+                p.potion_type AS potion_type, 
+                COALESCE(SUM(pl.delta), 0) AS inventory
+            FROM 
+                potions AS p
+            LEFT JOIN 
+                potion_ledger AS pl ON p.id = pl.potion_id
+            GROUP BY 
+                p.sku, 
+                p.id, 
+                p.price, 
+                p.potion_type
+            HAVING 
+                COALESCE(SUM(pl.delta), 0) > 0
+            ORDER BY 
+                inventory DESC;
+            """
     catalog = []
     with db.engine.begin() as connection:
-        results = connection.execute(sqlalchemy.text("SELECT sku, inventory, price, potion_type FROM public.potions WHERE inventory > 0 ORDER BY inventory DESC")).mappings().all()
+        results = connection.execute(sqlalchemy.text(sql_qry)).mappings().all()
         count = 0
         
         for result in results:

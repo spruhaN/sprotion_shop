@@ -19,30 +19,25 @@ class PotionInventory(BaseModel):
 def post_deliver_bottles(potions_delivered: list[PotionInventory], order_id: int):
     """ """
     print(f"delivering potions: {potions_delivered} order_id: {order_id}")
-    # STEP 2) kinda tested!
     
     with db.engine.begin() as connection:
-        # grab available ml and pots(green)
-        result = connection.execute(sqlalchemy.text("SELECT * FROM global_inventory")).first()
-        available_inventory = [result.num_red_ml, result.num_green_ml, result.num_blue_ml, result.num_dark_ml]
-
-        # for each potion
         for potion in potions_delivered:
-            type = potion.potion_type
-            num = potion.quantity
-            
-            result = connection.execute(sqlalchemy.text("SELECT id, inventory FROM potions WHERE potion_type = :potion_type"), {'potion_type': type}).first()
+
+            # grabs id of potion being made
+            result = connection.execute(sqlalchemy.text("SELECT id FROM potions WHERE potion_type = :potion_type"), {'potion_type': potion.potion_type}).first()
             potion_id = result.id
-            potion_inventory = result.inventory + potion.quantity
-            available_inventory[0] -= potion.potion_type[0] * potion.quantity
-            available_inventory[1] -= potion.potion_type[1] * potion.quantity
-            available_inventory[2] -= potion.potion_type[2] * potion.quantity
-            available_inventory[3] -= potion.potion_type[3] * potion.quantity
-            # id
-            # can make sql text and execute separate
-            connection.execute(sqlalchemy.text("UPDATE global_inventory SET num_green_ml = :gm, num_red_ml =  :rm, num_blue_ml =  :bm, num_dark_ml = :dm"), {"gm" : available_inventory[1], "rm" : available_inventory[0], "bm" : available_inventory[2], "dm" : available_inventory[3]})
-            connection.execute(sqlalchemy.text("UPDATE potions SET inventory = :inven WHERE id = :potion_id"), {"inven" : potion_inventory, "potion_id" : potion_id})
-        # print(f"UPDATED INVENTORY {green_ml} ml and {green_pots} potions left")
+            
+            # gets delta of each color 
+            delta = [potion.potion_type[0] * potion.quantity, potion.potion_type[1] * potion.quantity, potion.potion_type[2] * potion.quantity, potion.potion_type[3] * potion.quantity]
+            print(f"adding {potion.quantity} of {potion_id} with {delta}")
+            
+            # adds ml diff into total ledger
+            res = connection.execute(sqlalchemy.text("INSERT INTO global_ledger (red_ml_delta, green_ml_delta, blue_ml_delta, dark_ml_delta, potion_id, potion_delta) VALUES (:rm,:gm,:bm,:dm, :pid, :pdelta) returning id AS ledger_id"), {"gm" : -delta[1], "rm" : -delta[0], "bm" : -delta[2], "dm" : -delta[3], "pid":potion_id, "pdelta": potion.quantity}).first()
+            ledger_id = res.ledger_id
+            
+            # adds potion diff to total ledger
+            connection.execute(sqlalchemy.text("INSERT INTO ml_ledger (ledger_id, red_ml, green_ml, blue_ml, dark_ml) VALUES (:ledger_id, :rm, :gm, :bm, :dm)"), {"ledger_id" : ledger_id, "gm" : -delta[1], "rm" : -delta[0], "bm" : -delta[2], "dm" : -delta[3]})
+            connection.execute(sqlalchemy.text("INSERT INTO potion_ledger (ledger_id, potion_id, delta) VALUES (:ledger_id, :pid, :pdelta)"), {"ledger_id" : ledger_id, "pid" : potion_id, "pdelta": potion.quantity})
     return "OK"
 
 @router.post("/plan")
@@ -56,20 +51,39 @@ def get_bottle_plan():
     red_ml = 0
     blue_ml = 0
     bottle_cart = []
+    sql_qry = """
+                SELECT 
+                    p.sku AS sku,
+                    p.inventory AS current_inventory,  -- Renamed to avoid confusion
+                    p.potion_type AS potion_type,
+                    COALESCE(SUM(pl.delta), 0) AS total_inventory,
+                    p.mixed AS mixed
+                FROM
+                    potions AS p
+                LEFT JOIN
+                    potion_ledger AS pl ON p.id = pl.potion_id
+                GROUP BY 
+                    p.sku,
+                    p.inventory,
+                    p.potion_type,
+                    p.mixed
+                ORDER BY 
+                    total_inventory ASC,
+                    mixed DESC;
+                """
     # STEP 1) 
     with db.engine.begin() as connection:
         # grab all available ml
         available_colors = []
-        result_global = connection.execute(sqlalchemy.text("SELECT * FROM global_inventory")).first()
-        available_colors.append(result_global.num_red_ml)
-        available_colors.append(result_global.num_green_ml)
-        available_colors.append(result_global.num_blue_ml)
-        available_colors.append(result_global.num_dark_ml)
+        result_global = connection.execute(sqlalchemy.text("SELECT SUM(red_ml_delta) AS red_ml,SUM(green_ml_delta) AS green_ml, SUM(blue_ml_delta) AS blue_ml, SUM(dark_ml_delta) AS dark_ml FROM global_ledger")).first()
+        available_colors.append(result_global.red_ml)
+        available_colors.append(result_global.green_ml)
+        available_colors.append(result_global.blue_ml)
+        available_colors.append(result_global.dark_ml)
         print(f"available ml inventory: {available_colors}")
 
         # grab possible potions
-        potions = connection.execute(sqlalchemy.text("SELECT sku, inventory, potion_type FROM public.potions WHERE inventory < 5 ORDER BY mixed DESC, inventory ASC")).mappings().all()
-
+        potions = connection.execute(sqlalchemy.text(sql_qry)).mappings().all()
 
         additions = {potion['sku']: {'added': [0, 0, 0, 0], 'inventory': 0} for potion in potions}
         print(len(potions))

@@ -147,7 +147,20 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
 
         for item in cart_items:
             # use potion id and get price and current inventory
-            potion_details = connection.execute(sqlalchemy.text("SELECT price,inventory FROM potions WHERE id = :pot_id"),{'pot_id': item['potion_id']}).first()
+            sql_qry = """
+                SELECT 
+                    p.price AS price,
+                    COALESCE(SUM(pl.delta), 0) AS inventory 
+                FROM 
+                    potions AS p
+                LEFT JOIN 
+                    potion_ledger AS pl ON p.id = pl.potion_id
+                WHERE 
+                    p.id = :pot_id
+                GROUP BY 
+                    p.price
+                """
+            potion_details = connection.execute(sqlalchemy.text(sql_qry),{'pot_id': item['potion_id']}).first()
 
             # give whats possible
             if potion_details.inventory >= item.quantity:
@@ -159,9 +172,12 @@ def checkout(cart_id: int, cart_checkout: CartCheckout):
             total_cost += (sell_quantity * potion_details.price)
 
             # calculate and update values
-            res = connection.execute(sqlalchemy.text("UPDATE potions SET inventory = inventory - :sold_no WHERE id = :pot_id"),{'sold_no': sell_quantity, 'pot_id':item['potion_id']})
+            res = connection.execute(sqlalchemy.text("INSERT INTO global_ledger (potion_id, potion_delta, gold_delta) VALUES (:pot_id,:sold_no,:total_cost) RETURNING id AS init_ledger_id;"),{'sold_no': -sell_quantity, 'pot_id':item['potion_id'], 'total_cost': total_cost}).first()
+            ledger_id = res.init_ledger_id
+            connection.execute(sqlalchemy.text("INSERT INTO potion_ledger (ledger_id, potion_id, delta) VALUES (:ledger_id, :pot_id, :sold_no)"),{'ledger_id': ledger_id, 'sold_no': -sell_quantity, 'pot_id':item['potion_id']})
+            connection.execute(sqlalchemy.text("INSERT INTO gold_ledger (ledger_id, gold_delta) VALUES (:ledger_id, :total_cost)"),{'ledger_id': ledger_id, 'total_cost': total_cost})
 
-        res = connection.execute(sqlalchemy.text("UPDATE global_inventory SET gold = gold + :added"),{'added': total_cost})
+
     print(f"prev state num pots: {total_potions_sold} cost: {total_cost}")
 
     return {"total_potions_bought": total_potions_sold, "total_gold_paid": total_cost}
