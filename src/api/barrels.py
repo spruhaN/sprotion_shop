@@ -75,9 +75,9 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
     barrel_list = sorted(wholesale_catalog, key=lambda barrel: barrel.ml_per_barrel, reverse=True)
     for barrel in barrel_list:
         potion_needed = (green_ml < 1000 and barrel.potion_type == [0, 1, 0, 0]) or \
-                    (red_ml < 1000 and barrel.potion_type == [1, 0, 0, 0]) or \
-                    (blue_ml < 1000 and barrel.potion_type == [0, 0, 1, 0]) or \
-                    (dark_ml < 1000 and barrel.potion_type == [0, 0, 0, 1])
+                    (green_ml < 1000 and barrel.potion_type == [1, 0, 0, 0]) or \
+                    (green_ml < 1000 and barrel.potion_type == [0, 0, 1, 0]) or \
+                    (green_ml < 1000 and barrel.potion_type == [0, 0, 0, 1])
         
         if barrel.ml_per_barrel > 200 or (potion_needed and barrel.ml_per_barrel > 300):
             num_barrels = int(10000/barrel.ml_per_barrel)
