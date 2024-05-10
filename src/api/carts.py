@@ -68,7 +68,7 @@ def search_orders(
     formatted_results = format_results(results, potion_prices)
     
     pagination = calculate_pagination(search_page, total_results)
-    print(f"SEARCHING... {**pagination}\n{formatted_results}")
+    print(f"SEARCHING... {pagination}\n{formatted_results}")
     return {**pagination, "results": formatted_results}
 
 def build_base_queries():
