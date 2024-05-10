@@ -69,37 +69,52 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
         dark_ml = res.dark_ml
         gold = res.gold
 
-    barrel_plan = []
-    # wholesale_catalog = [Barrel(sku='MEDIUM_RED_BARREL', ml_per_barrel=2500, potion_type=[1, 0, 0, 0], price=250, quantity=10), Barrel(sku='SMALL_RED_BARREL', ml_per_barrel=500, potion_type=[1, 0, 0, 0], price=100, quantity=10), Barrel(sku='MEDIUM_GREEN_BARREL', ml_per_barrel=2500, potion_type=[0, 1, 0, 0], price=250, quantity=10), Barrel(sku='SMALL_GREEN_BARREL', ml_per_barrel=500, potion_type=[0, 1, 0, 0], price=100, quantity=10), Barrel(sku='MEDIUM_BLUE_BARREL', ml_per_barrel=2500, potion_type=[0, 0, 1, 0], price=300, quantity=10), Barrel(sku='SMALL_BLUE_BARREL', ml_per_barrel=500, potion_type=[0, 0, 1, 0], price=120, quantity=10), Barrel(sku='MINI_RED_BARREL', ml_per_barrel=200, potion_type=[1, 0, 0, 0], price=60, quantity=1), Barrel(sku='MINI_GREEN_BARREL', ml_per_barrel=200, potion_type=[0, 1, 0, 0], price=60, quantity=1), Barrel(sku='MINI_BLUE_BARREL', ml_per_barrel=200, potion_type=[0, 0, 1, 0], price=60, quantity=1), Barrel(sku='LARGE_DARK_BARREL', ml_per_barrel=10000, potion_type=[0, 0, 0, 1], price=750, quantity=10), Barrel(sku='LARGE_BLUE_BARREL', ml_per_barrel=10000, potion_type=[0, 0, 1, 0], price=600, quantity=30), Barrel(sku='LARGE_GREEN_BARREL', ml_per_barrel=10000, potion_type=[0, 1, 0, 0], price=400, quantity=30), Barrel(sku='LARGE_RED_BARREL', ml_per_barrel=10000, potion_type=[1, 0, 0, 0], price=500, quantity=30)]
-    print(f" planning barrels: {wholesale_catalog}")
-    barrel_list = sorted(wholesale_catalog, key=lambda barrel: barrel.ml_per_barrel, reverse=True)
-    for barrel in barrel_list:
-        potion_needed = (green_ml < 1000 and barrel.potion_type == [0, 1, 0, 0]) or \
-                    (green_ml < 1000 and barrel.potion_type == [1, 0, 0, 0]) or \
-                    (green_ml < 1000 and barrel.potion_type == [0, 0, 1, 0]) or \
-                    (green_ml < 1000 and barrel.potion_type == [0, 0, 0, 1])
-        
-        if barrel.ml_per_barrel > 200 or (potion_needed and barrel.ml_per_barrel > 300):
-            num_barrels = int(10000/barrel.ml_per_barrel)
+    ml_capacity = 10000
 
-            for i in range(num_barrels, 0, -1):
-                if barrel.price * i <= gold:
-                    num_barrels = i
-                    break
-                
-            if num_barrels > 0 and gold >= (barrel.price * num_barrels):
-                gold -= barrel.price * num_barrels
+    barrel_plan = []
+    barrelsize = 500
+    # wholesale_catalog = [Barrel(sku='SMALL_RED_BARREL', ml_per_barrel=500, potion_type=[1, 0, 0, 0], price=100, quantity=10), Barrel(sku='SMALL_GREEN_BARREL', ml_per_barrel=500, potion_type=[0, 1, 0, 0], price=100, quantity=10), Barrel(sku='SMALL_BLUE_BARREL', ml_per_barrel=500, potion_type=[0, 0, 1, 0], price=120, quantity=10), Barrel(sku='MINI_RED_BARREL', ml_per_barrel=200, potion_type=[1, 0, 0, 0], price=60, quantity=1), Barrel(sku='MINI_GREEN_BARREL', ml_per_barrel=200, potion_type=[0, 1, 0, 0], price=60, quantity=1), Barrel(sku='MINI_BLUE_BARREL', ml_per_barrel=200, potion_type=[0, 0, 1, 0], price=60, quantity=1)]
+    barrel_list = sorted(wholesale_catalog, key=lambda barrel: barrel.ml_per_barrel, reverse=True)
+
+    for barrel in wholesale_catalog:
+        if barrel.potion_type == [0, 1, 0, 0] and (barrel.ml_per_barrel >= barrelsize or (green_ml < 1000 and barrel.ml_per_barrel >= 500)):
+            cap = ml_capacity/3 - green_ml
+            qty = int(cap // barrel.ml_per_barrel)
+            while barrel.price*qty > gold and qty > 0:
+                qty -= 1
+            if qty > 0:
+                gold -= barrel.price*qty
                 barrel_plan.append({
                     "sku": barrel.sku,
-                    "quantity": num_barrels,
+                    "quantity": qty,
                 })
-                if barrel.potion_type == [0, 1, 0, 0]:
-                    green_ml += barrel.ml_per_barrel * num_barrels
-                elif barrel.potion_type == [1, 0, 0, 0]:
-                    red_ml += barrel.ml_per_barrel * num_barrels
-                elif barrel.potion_type == [0, 0, 1, 0]:
-                    blue_ml += barrel.ml_per_barrel * num_barrels
-                elif barrel.potion_type == [0, 0, 0, 1]:
-                    dark_ml += barrel.ml_per_barrel * num_barrels
-    print(f"planning to get {barrel_plan}")
+                green_ml += barrel.ml_per_barrel * qty
+
+        elif barrel.potion_type == [1, 0, 0, 0] and (barrel.ml_per_barrel >= barrelsize or (red_ml < 1000 and barrel.ml_per_barrel >= 500)):
+            cap = ml_capacity/3 - red_ml
+            qty = int(cap // barrel.ml_per_barrel)
+            while barrel.price*qty > gold and qty > 0:
+                qty -= 1
+            if qty > 0:
+                gold -= barrel.price*qty
+                barrel_plan.append({
+                    "sku": barrel.sku,
+                    "quantity": qty,
+                })
+                red_ml += barrel.ml_per_barrel * qty
+    
+        elif barrel.potion_type == [0, 0, 1, 0] and (barrel.ml_per_barrel >= barrelsize or (blue_ml < 1000 and barrel.ml_per_barrel >= 500)):
+            cap = ml_capacity/3 - blue_ml
+            qty = int(cap // barrel.ml_per_barrel)
+            while barrel.price*qty > gold and qty > 0:
+                qty -= 1
+            if qty > 0:
+                gold -= barrel.price*qty
+                barrel_plan.append({
+                    "sku": barrel.sku,
+                    "quantity": qty,
+                })
+                blue_ml += barrel.ml_per_barrel * qty
+                
+
     return barrel_plan
