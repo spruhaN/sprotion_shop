@@ -153,8 +153,11 @@ def format_results(results, potion_prices):
         } for row in results
     ]
 
-def calculate_pagination(search_page, total_results):
-    page_num = int(search_page)
+def calculate_pagination(search_page: str, total_results):
+    if search_page == "":
+        page_num = 0
+    else:
+        page_num = int(search_page)
     has_previous = page_num > 1
     has_next = total_results > page_num * 5
     return {
