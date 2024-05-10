@@ -116,5 +116,5 @@ def get_wholesale_purchase_plan(wholesale_catalog: list[Barrel]):
                 })
                 blue_ml += barrel.ml_per_barrel * qty
                 
-
+    print(f"CATALOG: {wholesale_catalog}\n PLANNING TO GET BARRELS: {barrel_plan}")
     return barrel_plan
