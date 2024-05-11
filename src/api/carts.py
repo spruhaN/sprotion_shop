@@ -140,6 +140,7 @@ def search_orders(
     else:
         next = ""
 
+    print(f"AT PAGE {int(search_page)} (prev: {previous}) (next: {next}) HAS ELEMENTS {result}")
     return {
         "previous": previous,
         "next": next,
