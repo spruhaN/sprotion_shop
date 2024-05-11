@@ -59,112 +59,94 @@ def search_orders(
     Your results must be paginated, the max results you can return at any
     time is 5 total line items.
     """
-    query_base, count_query_base = build_base_queries()
-    params = setup_query_parameters(customer_name, potion_sku, search_page)
-    query = finalize_query(query_base, sort_col, sort_order, params)
-    count_query = finalize_count_query(count_query_base, customer_name, potion_sku)
-
-    total_results, results, potion_prices = fetch_data(query, count_query, params)
-    formatted_results = format_results(results, potion_prices)
-    
-    pagination = calculate_pagination(search_page, total_results)
-    print(f"SEARCHING... {pagination}\n{formatted_results}")
-    return {**pagination, "results": formatted_results}
-
-def build_base_queries():
-    query_base = """
+    query = """
         SELECT 
-            cart_items.potion_id, cart_items.quantity, potions.sku, 
-            carts.customer_id, customers.name, cart_items.time
+            cart_items.cart_id,
+            cart_items.quantity,
+            potions.sku,
+            cart_items.potion_id,
+            carts.customer_id,
+            customers.name,
+            customers.class,
+            customers.level,
+            cart_items.time
         FROM cart_items
         JOIN carts ON cart_items.cart_id = carts.id
         JOIN customers ON carts.customer_id = customers.id
         JOIN potions ON cart_items.potion_id = potions.id
-    """
-    count_query_base = """
+        """
+    result = []
+    params = {}
+    previous = ""
+    if customer_name != "":
+        query += " WHERE cust.name ILIKE :name"
+        params["name"] = "%"+customer_name+"%"
+    if potion_sku != "":
+        query += " AND potions.sku ILIKE :item_sku" if "WHERE" in query else " WHERE potions.sku ILIKE :item_sku"
+        params["item_sku"] = "%" + potion_sku + "%"
+
+    if not search_page:
+        search_page = "1"
+    params["page"] = int(search_page)
+    if search_page and int(search_page) > 1:
+        previous = str(int(search_page) - 1)
+    
+    if sort_col == "" or sort_col == search_sort_options.timestamp:
+        sort_col = "cart_items.time"
+    if sort_order == "" or sort_order == search_sort_order.desc:
+        sort_order = "desc"
+    elif sort_order == search_sort_order.asc:
+        sort_order = "asc"
+    if sort_col == search_sort_options.line_item_total:
+        sort_col = "cart_items.quantity"
+    if sort_col == search_sort_options.customer_name:
+        sort_col = "customers.name"
+    if sort_col == search_sort_options.item_sku:
+        sort_col = "potions.sku"
+
+    query += f" ORDER BY {sort_col} {sort_order} LIMIT 5 OFFSET {5*(params['page']-1)}"
+
+    count_query = """
         SELECT COUNT(*)
         FROM cart_items
         JOIN carts ON cart_items.cart_id = carts.id
         JOIN customers ON carts.customer_id = customers.id
         JOIN potions ON cart_items.potion_id = potions.id
-    """
-    return query_base, count_query_base
-
-def setup_query_parameters(customer_name, potion_sku, search_page):
-    params = {}
-    if customer_name:
-        params["name"] = f"%{customer_name}%"
-    if potion_sku:
-        params["item_sku"] = f"%{potion_sku}%"
-    if not search_page:
-        search_page = "1"
-    params["page"] = int(search_page)
-    return params
-
-def finalize_count_query(base_query: str, customer_name: str, potion_sku: str) -> str:
-    if customer_name or potion_sku:
-        return base_query + f" WHERE {' AND '.join(filter(None, [customer_name and 'customers.name LIKE :name', potion_sku and 'potions.sku = :item_sku']))}"
-    return base_query
-
-def finalize_query(base_query, sort_col, sort_order, params):
-    column_map = {
-        search_sort_options.timestamp: "cart_items.time",
-        search_sort_options.line_item_total: "cart_items.quantity * potions.price",
-        search_sort_options.customer_name: "customers.name",
-        search_sort_options.item_sku: "potions.sku"
-    }
+        """
     
-    order_map = {
-        search_sort_order.asc: "ASC",
-        search_sort_order.desc: "DESC"
-    }
+    if customer_name != "":
+        count_query += " WHERE customers.name LIKE :name"
+    if potion_sku != "":
+        count_query += " AND potions.sku = :item_sku" if "WHERE" in count_query else " WHERE potions.sku = :item_sku"
 
-    # Select the correct column and order from the maps
-    sort_column = column_map.get(sort_col, "cart_items.time")  # Default to sorting by time
-    sort_order = order_map.get(sort_order, "DESC")             # Default to descending order
-
-    where_clauses = []
-    if "name" in params:
-        where_clauses.append("customers.name ILIKE :name")
-    if "item_sku" in params:
-        where_clauses.append("potions.sku ILIKE :item_sku")
-    if where_clauses:
-        base_query += " WHERE " + " AND ".join(where_clauses)
-
-    final_query = f"{base_query} ORDER BY {sort_column} {sort_order} LIMIT 5 OFFSET {5 * (params['page'] - 1)}"
-
-    return final_query
-
-def fetch_data(query, count_query, params):
     with db.engine.begin() as connection:
         total_results = connection.execute(sqlalchemy.text(count_query), params).scalar()
-        results = connection.execute(sqlalchemy.text(query), params).fetchall()
-        potion_prices = connection.execute(sqlalchemy.text("SELECT sku, price FROM potions")).fetchall()
-    return total_results, results, potion_prices
 
-def format_results(results, potion_prices):
-    price_dict = {item.sku: item.price for item in potion_prices}
-    return [
-        {
+    with db.engine.begin() as connection:
+        results = connection.execute(sqlalchemy.text(query), params).fetchall()
+        potionPrices = connection.execute(sqlalchemy.text("SELECT sku, price FROM potions")).fetchall()
+
+    for row in results:
+        result.append({
             "line_item_id": row.potion_id,
             "item_sku": row.sku,
             "customer_name": row.name,
-            "line_item_total": row.quantity * price_dict.get(row.sku, 0),
+            "line_item_total": row.quantity * potionPrices[row.potion_id-1].price,
             "timestamp": row.time,
-        } for row in results
-    ]
+        })
 
-def calculate_pagination(search_page: str, total_results):
-    if search_page == "":
-        page_num = 0
+    if total_results - (int(search_page)-1) * 5 > 5:
+        next = str(int(search_page) + 1)
     else:
-        page_num = int(search_page)
-    has_previous = page_num > 1
-    has_next = total_results > page_num * 5
+        next = ""
+
     return {
-        "previous": str(page_num - 1) if has_previous else "",
-        "next": str(page_num + 1) if has_next else ""
+        "previous": previous,
+        "next": next,
+        "results": result,
     }
+
+
 
 
 class Customer(BaseModel):
