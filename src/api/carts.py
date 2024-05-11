@@ -128,7 +128,7 @@ def search_orders(
 
     for row in results:
         result.append({
-            "line_item_id": row.potion_id,
+            "line_item_id": row.cart_id,
             "item_sku": row.sku,
             "customer_name": row.name,
             "line_item_total": row.quantity * potionPrices[row.potion_id-1].price,
